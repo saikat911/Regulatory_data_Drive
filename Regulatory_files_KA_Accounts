@@ -1,1 +1,879 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "3a590e09-7f14-438a-a6ec-b61a5755911f",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import pandas as pd \n",
+    "import ujson\n",
+    "from tqdm import tqdm\n",
+    "import gspread\n",
+    "import requests\n",
+    "import pygsheets\n",
+    "import numpy as np\n",
+    "from oauth2client.service_account import ServiceAccountCredentials\n",
+    "from gspread.exceptions import APIError\n",
+    "import openpyxl\n",
+    "from openpyxl.utils.dataframe import dataframe_to_rows\n",
+    "import requests\n",
+    "import json\n",
+    "import datetime\n",
+    "from zipfile import ZipFile\n",
+    "from datetime import datetime \n",
+    "from datetime import timedelta"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "00bae73b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import os\n",
+    "import base64\n",
+    "import smtplib\n",
+    "import io\n",
+    "from gspread_pandas import Spread, Client\n",
+    "from boxsdk.auth.jwt_auth import JWTAuth\n",
+    "# from boxsdk[jwt] import JWTAuth\n",
+    "# from boxsdk[jwt] import JWTAuth, Client\n",
+    "import csv\n",
+    "from tchannel import thrift \n",
+    "from tchannel.sync import TChannel \n",
+    "from queryrunner_client import Client\n",
+    "from querybuilder_client import QuerybuilderClient\n",
+    "from oauth2client.service_account import ServiceAccountCredentials"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "aac14ddc",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import os\n",
+    "import json\n",
+    "import pygsheets\n",
+    "from google.oauth2 import service_account\n",
+    "f =open(os.environ['SECRETS_PATH'] +'/'+ 'gcp-sa_daasu4b_saikatkmallick-2' +'/'+ 'credentials.json')\n",
+    "s = f.read()\n",
+    "service_account_info = json.loads(s)\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4e8d91ba",
+   "metadata": {},
+   "source": [
+    "### Download your usecret through this code, then proceed to next steps -->"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "1393e2ff",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#####IMPORTANT_STEPS######\n",
+    "\n",
+    "# import os\n",
+    "# import json\n",
+    "\n",
+    "# # Read the JSON content from the service account\n",
+    "# with open(os.path.join(os.environ['SECRETS_PATH'] +'/'+ 'gcp-sa_daasu4b_saikatkmallick-2' +'/'+ 'credentials.json')) as f:\n",
+    "#     service_account_info = json.load(f)\n",
+    "\n",
+    "# # Now write it to a file in your current directory\n",
+    "# with open(\"credentials_downloaded.json\", \"w\") as outfile:\n",
+    "#     json.dump(service_account_info, outfile, indent=4)\n",
+    "\n",
+    "# print(\"Downloaded as credentials_downloaded.json\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "b6e62adb",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from datetime import datetime \n",
+    "def Sheet_to_df(sheet_name,Tab_name):\n",
+    "    f = os.environ['SECRETS_PATH'] +'/'+ 'gcp-sa_daasu4b_saikatkmallick-2' +'/'+ 'credentials.json'\n",
+    "    scope = ['https://spreadsheets.google.com/feeds']\n",
+    "    creds = ServiceAccountCredentials.from_json_keyfile_name(f, scope)\n",
+    "#     client = pygsheets.authorize(service_file = f)\n",
+    "    client = gspread.authorize(creds)\n",
+    "    Form_df = client.open_by_key(sheet_name)\n",
+    "    Form_df_data = Form_df.worksheet(Tab_name)\n",
+    "    Form_df = pd.DataFrame(Form_df_data.get_all_values())\n",
+    "    Form_df.columns = Form_df.iloc[0]\n",
+    "    Form_df = Form_df[1:].reset_index(drop=True)\n",
+    "    return Form_df\n",
+    "def col2num(col):\n",
+    "    num = 0\n",
+    "    for c in col:\n",
+    "        if c in string.ascii_letters:\n",
+    "            num = num * 26 + (ord(c.upper()) - ord('A')) + 1\n",
+    "    return str(num)\n",
+    "\n",
+    "week_day=datetime.now().weekday()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "f3069d44",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'2025-06-26'"
+      ]
+     },
+     "execution_count": 6,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "date1 = datetime.now()+timedelta(days=1)\n",
+    "current_date = date1.strftime(\"%Y-%m-%d\")\n",
+    "current_date"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "7d6e6cf0",
+   "metadata": {},
+   "source": [
+    "## Define Gsheet Functions"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "f9b36bf6",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "class Gsheets:\n",
+    "    def __init__(self, auth_file: str, sheet_id: str, tab_name: str):\n",
+    "        \"\"\"\n",
+    "        Gsheets\n",
+    "        :param auth_file: str with relative location\n",
+    "        :param sheet_id: str with the sheet id on the url\n",
+    "        :param tab_name: str with the name of the tab you want to use\n",
+    "        \"\"\"\n",
+    "        self.auth_file = auth_file\n",
+    "        self.sheet_id = sheet_id\n",
+    "        self.tab_name = tab_name\n",
+    "        self.sheet = self.get_sheet(auth_file=auth_file, sheet_id=sheet_id)\n",
+    "        self.worksheet = self.set_active_tab(tab_name=tab_name)\n",
+    "\n",
+    "    def get_sheet(self, auth_file: str, sheet_id: str):\n",
+    "        \"\"\"\n",
+    "        Make the login and create a auth object\n",
+    "        :param auth_file: str with relative location\n",
+    "        :param sheet_id: str with the sheet id on the url\n",
+    "        :returns: Google Sheet Client\n",
+    "        \"\"\"\n",
+    "        print(\" Authorizing GSheets...\")\n",
+    "        gc = pygsheets.authorize(service_file=auth_file)\n",
+    "        return gc.open_by_key(self.sheet_id)\n",
+    "\n",
+    "    def set_active_tab(self, tab_name: str = None):\n",
+    "        \"\"\"\n",
+    "        Defining the tab where the changes will be made\n",
+    "        :param tab_name: str with the name of the tab you want to use\n",
+    "        \"\"\"\n",
+    "        self.worksheet = self.sheet.worksheet_by_title(tab_name)\n",
+    "        return self.worksheet\n",
+    "\n",
+    "    def get_sheet_values(self, tab_name: str = None):\n",
+    "        \"\"\"\n",
+    "        Returning a dataframe with all the data on the sheet\n",
+    "        :param tab_name: str with the name of the tab you want to use\n",
+    "        :return: pandas DataFrame\n",
+    "        \"\"\"\n",
+    "        print(\" Getting data..\")\n",
+    "        if tab_name:\n",
+    "            self.set_active_tab(tab_name=tab_name)\n",
+    "\n",
+    "        list_values = self.worksheet.get_all_values(include_empty=False)\n",
+    "        df = pd.DataFrame(list_values)\n",
+    "        df.rename(columns=df.iloc[0], inplace=True)\n",
+    "        df.drop([0], inplace=True)\n",
+    "        df = df.reset_index(drop=True)\n",
+    "        return df\n",
+    "\n",
+    "    def append_data(self, df: pd.DataFrame, tab_name: str = None):\n",
+    "        \"\"\"\n",
+    "        Appending an dataframe to the existing data of the sheet\n",
+    "        :param df: pd.Dataframe that you want to append on the sheet\n",
+    "        :param tab_name: str with the name of the tab you want to use\n",
+    "        \"\"\"\n",
+    "        if tab_name:\n",
+    "            self.set_active_tab(tab_name=tab_name)\n",
+    "        print(\" Appending data..\")\n",
+    "        sheet_df = self.get_sheet_values()\n",
+    "        if sheet_df.empty:\n",
+    "            self.worksheet.set_dataframe(df, (1, 1))\n",
+    "        else:\n",
+    "            updated_df = sheet_df.append(df)\n",
+    "            self.worksheet.clear()\n",
+    "            self.worksheet.set_dataframe(updated_df, (1, 1))\n",
+    "\n",
+    "    def replace_data(self, df: pd.DataFrame, tab_name: str = None):\n",
+    "        \"\"\"\n",
+    "        Replacing all the existing on the sheet to a new one\n",
+    "        :param df: pd.Dataframe that you want to append on the sheet\n",
+    "        :param tab_name: str with the name of the tab you want to use\n",
+    "        \"\"\"\n",
+    "        print(\" Replacing data..\")\n",
+    "        if tab_name:\n",
+    "            self.set_active_tab(tab_name=tab_name)\n",
+    "\n",
+    "        self.worksheet.clear()\n",
+    "        self.worksheet.set_dataframe(df, (1, 1))\n",
+    "\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "7e22c6b0",
+   "metadata": {},
+   "source": [
+    "## Set up Google Drive"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "id": "6f598184",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from googleapiclient.discovery import build\n",
+    "from googleapiclient.http import MediaFileUpload\n",
+    "from google.oauth2 import service_account\n",
+    "\n",
+    "class GDriveUploader:\n",
+    "    def __init__(self, auth_file: str, folder_id: str):\n",
+    "        self.auth_file = auth_file\n",
+    "        self.folder_id = folder_id\n",
+    "        self.service = self.authenticate()\n",
+    "\n",
+    "    def authenticate(self):\n",
+    "        creds = service_account.Credentials.from_service_account_file(\n",
+    "            self.auth_file,\n",
+    "            scopes=[\"https://www.googleapis.com/auth/drive\"]\n",
+    "        )\n",
+    "        return build('drive', 'v3', credentials=creds)\n",
+    "\n",
+    "    def create_folder(self, folder_name: str, parent_folder_id: str = None):\n",
+    "        \"\"\"\n",
+    "        Creates a folder in Google Drive under the specified parent.\n",
+    "        \"\"\"\n",
+    "        if parent_folder_id is None:\n",
+    "            parent_folder_id = self.folder_id\n",
+    "\n",
+    "        file_metadata = {\n",
+    "            'name': folder_name,\n",
+    "            'mimeType': 'application/vnd.google-apps.folder',\n",
+    "            'parents': [parent_folder_id]\n",
+    "        }\n",
+    "\n",
+    "        file = self.service.files().create(body=file_metadata, fields='id').execute()\n",
+    "        return file.get('id')\n",
+    "    \n",
+    "    \n",
+    "\n",
+    "    def upload_file(self, file_path: str, file_name: str, parent_folder_id: str = None):\n",
+    "        \"\"\"\n",
+    "        Uploads a file to Google Drive under the given folder.\n",
+    "        \"\"\"\n",
+    "        if parent_folder_id is None:\n",
+    "            parent_folder_id = self.folder_id\n",
+    "\n",
+    "        file_metadata = {\n",
+    "            'name': file_name,\n",
+    "            'parents': [parent_folder_id]\n",
+    "        }\n",
+    "\n",
+    "        media = MediaFileUpload(file_path, resumable=True)\n",
+    "        uploaded_file = self.service.files().create(body=file_metadata, media_body=media, fields='id,webViewLink').execute()\n",
+    "\n",
+    "        return uploaded_file['webViewLink']\n",
+    "    \n",
+    "        # Make file shareable\n",
+    "        self.service.permissions().create(\n",
+    "            fileId=uploaded_file['id'],\n",
+    "            body={'type': 'anyone', 'role': 'reader','allowFileDiscovery': False},\n",
+    "            fields='id'\n",
+    "        ).execute()\n",
+    "\n",
+    "        # Get shareable link\n",
+    "        shareable_link = f\"https://drive.google.com/file/d/{uploaded_file['id']}/view?usp=sharing\"\n",
+    "        return shareable_link\n",
+    "    \n",
+    "    def file_exists(self, filename, parent_folder_id):\n",
+    "        # Escape single quote by using backslash\n",
+    "        safe_filename = filename.replace(\"'\", \"\\\\'\")\n",
+    "        query = f\"name='{safe_filename}' and '{parent_folder_id}' in parents and trashed=false\"\n",
+    "        results = self.service.files().list(\n",
+    "            q=query, spaces='drive', fields=\"files(id, name)\"\n",
+    "        ).execute()\n",
+    "        return len(results.get('files', [])) > 0\n",
+    "\n",
+    "    \n",
+    "    def set_read_only_permission(self, file_id_or_url, emails):\n",
+    "        file_id = file_id_or_url.split('/')[-2]\n",
+    "        for email in emails:\n",
+    "            self.service.permissions().create(\n",
+    "                fileId=file_id,\n",
+    "                body={\n",
+    "                    'type': 'user',\n",
+    "                    'role': 'reader',\n",
+    "                    'emailAddress': email\n",
+    "                },\n",
+    "                fields='id',\n",
+    "            ).execute()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "e85250d3",
+   "metadata": {},
+   "source": [
+    "## Extract Data KAs "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "id": "e0db733c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "### Give the service account access to sheets\n",
+    "# anz-nv-merch-ops@anz-nv-lpc.iam.gserviceaccount.com\n",
+    "\n",
+    "#####KAs\n",
+    "refusal_data = Sheet_to_df('1qXmSvR151r2EesPlCQYUqp5Ac-mWMx-5Z3MFpalqmTk','KA Refusal Data')\n",
+    "summary_data = Sheet_to_df('1qXmSvR151r2EesPlCQYUqp5Ac-mWMx-5Z3MFpalqmTk','KA Summary Data')\n",
+    "\n",
+    "unique_stores = summary_data['store_uuid'].unique()\n",
+    "KA_folder_id = '1aOsgGZtNGs89BLarVacepN7BeuWB_bLW'\n",
+    "nonKA_folder_id = '1XVdiAiK124N0GcEzE0L3ozhylXdHUrCt'"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "id": "51a47fb1",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'/home/smalli11/smalli11_nfs/Regulatory_script/Refusal Reporting Template 30 Sep 2022 - KA1.xlsx'"
+      ]
+     },
+     "execution_count": 10,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "template_path = '/home/smalli11/smalli11_nfs/Regulatory_script/Refusal Reporting Template 30 Sep 2022 - KA1.xlsx'\n",
+    "LOCAL_FOLDER = '/home/smalli11/smalli11_nfs/Regulatory_script'\n",
+    "template_path"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "18894245",
+   "metadata": {},
+   "source": [
+    "## Generate Reports per store and upload to Drive"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "id": "f79bd836",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "f = open(os.environ['SECRETS_PATH'] + '/gcp-sa_daasu4b_saikatkmallick-2/credentials.json')  \n",
+    "service_account_info = json.loads(f.read())\n",
+    "f.close()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "id": "193152bd",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "['bws' 'vintage cellars' \"dan murphy's\" 'first choice' 'colesliquor']\n"
+     ]
+    }
+   ],
+   "source": [
+    "refusal_data['parent_chain_name'] = refusal_data.get('parent_chain_name', 'Other')\n",
+    "refusal_data['parent_chain_name'] = refusal_data['parent_chain_name'].fillna('Other')\n",
+    "refusal_data['parent_chain_name'] = refusal_data['parent_chain_name'].apply(lambda x: 'Other' if str(x).strip().lower() in ['n/a', '\\\\n', '', 'none', 'nan'] else x.strip())\n",
+    "\n",
+    "# Extract cleaned unique chain names\n",
+    "unique_chains = refusal_data['parent_chain_name'].unique()\n",
+    "print(unique_chains)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "id": "32d3615a",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Uploaded: 2025 Refusals Report bws.xlsx to folder bws\n",
+      "Uploaded: 2025 Refusals Report vintage cellars.xlsx to folder vintage cellars\n",
+      "Uploaded: 2025 Refusals Report dan murphy's.xlsx to folder dan murphy's\n",
+      "Uploaded: 2025 Refusals Report first choice.xlsx to folder first choice\n",
+      "Uploaded: 2025 Refusals Report Liquorland.xlsx to folder Liquorland\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Create folder mapping per chain\n",
+    "chain_to_folder = {}\n",
+    "gdrive_uploader = GDriveUploader(\n",
+    "    auth_file='/home/smalli11/smalli11_nfs/credentials_downloaded.json',\n",
+    "    folder_id=KA_folder_id  #change the folder_id as per the KA or non-KA accounts\n",
+    ")\n",
+    "\n",
+    "name_override = {\n",
+    "    'colesliquor': 'Liquorland'\n",
+    "}\n",
+    "\n",
+    "# === Clean data ===\n",
+    "refusal_data['parent_chain_name'] = refusal_data['parent_chain_name'].replace(['n/a', '\\\\N', '', None], 'Other')\n",
+    "refusal_data['parent_chain_name'] = refusal_data['parent_chain_name'].fillna('Other').apply(lambda x: x.strip().lower())\n",
+    "\n",
+    "# === Folder creation ===\n",
+    "chain_to_folder = {}\n",
+    "unique_chains = refusal_data['parent_chain_name'].unique()\n",
+    "for chain in unique_chains:\n",
+    "    display_name = name_override.get(chain, chain)  # Override folder name\n",
+    "    folder_id = gdrive_uploader.create_folder(display_name)\n",
+    "    chain_to_folder[chain] = folder_id\n",
+    "\n",
+    "# === File creation ===\n",
+    "for chain in unique_chains:\n",
+    "    folder_id = chain_to_folder[chain]\n",
+    "    display_name = name_override.get(chain, chain)  # Use overridden name again for file\n",
+    "\n",
+    "    chain_refusal = refusal_data[refusal_data['parent_chain_name'] == chain]\n",
+    "    chain_summary = summary_data[summary_data['store_uuid'].isin(chain_refusal['store_uuid'])]\n",
+    "\n",
+    "    if chain_refusal.empty or chain_summary.empty:\n",
+    "        continue\n",
+    "\n",
+    "    report_filename = f\"2025 Refusals Report {display_name}.xlsx\"\n",
+    "    report_path = os.path.join(LOCAL_FOLDER, report_filename)\n",
+    "\n",
+    "    template = openpyxl.load_workbook(template_path)\n",
+    "    writer = pd.ExcelWriter(report_path, engine='openpyxl')\n",
+    "    writer.book = template\n",
+    "    writer.sheets = {ws.title: ws for ws in template.worksheets}\n",
+    "\n",
+    "    sheet = template['Refused deliveries']\n",
+    "    start_row = sheet.min_row + 1\n",
+    "    for _, row in chain_refusal.iterrows():\n",
+    "        sheet.cell(row=start_row, column=1).value = row['licence_number']\n",
+    "        sheet.cell(row=start_row, column=2).value = row['store_uuid']\n",
+    "        sheet.cell(row=start_row, column=3).value = row['cancel_code']\n",
+    "        sheet.cell(row=start_row, column=4).value = row['refusal_date']\n",
+    "        sheet.cell(row=start_row, column=5).value = row['refusal_time']\n",
+    "        sheet.cell(row=start_row, column=6).value = row['postcode']\n",
+    "        start_row += 1\n",
+    "\n",
+    "    sheet2 = template['Basic details and Instructions']\n",
+    "    start_row2 = 10\n",
+    "    for _, row in chain_summary.iterrows():\n",
+    "        sheet2.cell(row=start_row2, column=1).value = row['licence_number']\n",
+    "        sheet2.cell(row=start_row2, column=2).value = row['total_number_of_deliveries']\n",
+    "        sheet2.cell(row=start_row2, column=3).value = row['total_number_of_refused_deliveries']\n",
+    "        start_row2 += 1\n",
+    "\n",
+    "    writer.save()\n",
+    "\n",
+    "    if not gdrive_uploader.file_exists(report_filename, parent_folder_id=folder_id):\n",
+    "        gdrive_link = gdrive_uploader.upload_file(report_path, report_filename, parent_folder_id=folder_id)\n",
+    "#         gdrive_uploader.set_read_only_permission(gdrive_link, emails=[\"smalli11@ext.uber.com\"])\n",
+    "        print(f\"Uploaded: {report_filename} to folder {display_name}\")\n",
+    "    else:\n",
+    "        print(f\"Skipped (exists): {report_filename}\")\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "id": "08fadf4a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# # Final output\n",
+    "# pd.set_option('display.max_colwidth', 0)\n",
+    "# output = summary_data[['store_uuid', 'store_name', 'Drive URL']]\n",
+    "# output"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "id": "c23f43ed",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      " Authorizing GSheets...\n",
+      " Appending data..\n",
+      " Getting data..\n"
+     ]
+    }
+   ],
+   "source": [
+    "## Output Box Reports to Gsheets\n",
+    "\n",
+    "Gsheetsauth_file = '/home/smalli11/smalli11_nfs/credentials_downloaded.json'  # Path to your JSON auth file\n",
+    "sheet_id = '1qXmSvR151r2EesPlCQYUqp5Ac-mWMx-5Z3MFpalqmTk'\n",
+    "# sheet_id = '1RVT_jiGbt4vkCxQFhuu2d0dSkHm00hhYml4uJOARHi8'  # Replace with the actual sheet ID\n",
+    "tab_name = 'KA Box Links'  # Replace with the actual tab name\n",
+    "# tab_name = 'Non KA Box Links'  # Replace with the actual tab name\n",
+    "gsheets = Gsheets(Gsheetsauth_file, sheet_id, tab_name)\n",
+    "gsheets.append_data(output)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c43b3fdb",
+   "metadata": {},
+   "source": [
+    "### Old Method"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 28,
+   "id": "2864d3f3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# # from boxsdk import JWTAuth\n",
+    "# # from boxsdk import JWTAuth, Client\n",
+    "# # from boxsdk.auth.jwt_auth import JWTAuth\n",
+    "# template_path = '/home/smalli11/smalli11_nfs/Regulatory_script/Refusal Reporting Template 30 Sep 2022.xlsx'\n",
+    "\n",
+    "\n",
+    "# total_stores = len(unique_stores)\n",
+    "# for i, store_uuid in enumerate(unique_stores,1):\n",
+    "#     try:\n",
+    "#         filtered_data = refusal_data[refusal_data['store_uuid'] == store_uuid]\n",
+    "#         filtered_data2 = summary_data[summary_data['store_uuid'] == store_uuid]\n",
+    "#         store_name = filtered_data2['store_name'].iloc[0]  # Extract the store name\n",
+    "#         store_uuid = filtered_data2['store_uuid'].iloc[0]  # Extract the store uuid\n",
+    "#         report_filename = f\"2024 Refusals Report {store_name} {store_uuid}.xlsx\"\n",
+    "#         report_path = f\"/home/smalli11/smalli11_nfs/Regulatory_script/{report_filename}\"  # Path where the reports will be saved\n",
+    "\n",
+    "#         # Load the template file\n",
+    "#         template = openpyxl.load_workbook(template_path)\n",
+    "#         writer = pd.ExcelWriter(report_path, engine='openpyxl')\n",
+    "#         writer.book = template\n",
+    "#         writer.sheets = {ws.title: ws for ws in template.worksheets}  # Maintain existing sheets\n",
+    "\n",
+    "#         # Write the refusal data to the \"Refused deliveries\" tab starting from cell A10\n",
+    "#         sheet = template['Refused deliveries']    \n",
+    "#         if not filtered_data.empty:\n",
+    "#             start_row = sheet.min_row + 1  # Get the next available row\n",
+    "#             for index, row in filtered_data.iterrows():\n",
+    "#                 sheet.cell(row=start_row, column=1).value = row['licence_number']\n",
+    "#                 sheet.cell(row=start_row, column=2).value = row['cancel_code']\n",
+    "#                 sheet.cell(row=start_row, column=3).value = row['refusal_date']\n",
+    "#                 sheet.cell(row=start_row, column=4).value = row['refusal_time']\n",
+    "#                 sheet.cell(row=start_row, column=5).value = row['postcode']\n",
+    "#                 start_row += 1\n",
+    "#         else:\n",
+    "#             start_row = sheet.min_row + 1\n",
+    "#             sheet.cell(row=start_row, column=1).value = 'No refused deliveries have occured'\n",
+    "#             sheet.cell(row=start_row, column=2).value = 'No refused deliveries have occured'\n",
+    "#             sheet.cell(row=start_row, column=3).value = 'No refused deliveries have occured'\n",
+    "#             sheet.cell(row=start_row, column=4).value = 'No refused deliveries have occured'\n",
+    "#             sheet.cell(row=start_row, column=5).value = 'No refused deliveries have occured'\n",
+    "\n",
+    "#         # Write the summary data to the \"Basic details and Instructions\" tab starting from cell B\n",
+    "#         sheet2 = template['Basic details and Instructions']\n",
+    "#         start_row2 = 10 \n",
+    "#         for index, row in filtered_data2.iterrows():\n",
+    "#             sheet2.cell(row=start_row2, column=1).value = row['licence_number']\n",
+    "#             sheet2.cell(row=start_row2, column=2).value = row['total_number_of_deliveries']\n",
+    "#             sheet2.cell(row=start_row2, column=3).value = row['total_number_of_refused_deliveries']\n",
+    "#             start_row2 += 1\n",
+    "\n",
+    "#         writer.save()\n",
+    "\n",
+    "# #         # Upload to Box folder ID: 215464359872 \n",
+    "# #         box_client = authenticate_box('/mnt/cephfs/hadoop-compute/phoenix/smalli11/Regulatory_script/box_config.json')\n",
+    "# # #         uploaded_file = box_client.folder('215464359872').upload(f\"/home/smalli11/smalli11_nfs/Regulatory_script/{report_filename}\") \n",
+    "# #         uploaded_file = box_client.folder('273419193555').upload(f\"/mnt/cephfs/hadoop-compute/phoenix/smalli11/Regulatory_script/{report_filename}\")\n",
+    "# #         url = box_client.file(uploaded_file.id).get_shared_link(access='open', allow_download=True, allow_edit=False)\n",
+    "# #         summary_data.loc[summary_data['store_uuid'] == store_uuid, 'Box URL'] = url\n",
+    "\n",
+    "#         gdrive_uploader = GDriveUploader(\n",
+    "#             auth_file=creds,  # Same auth file\n",
+    "#             folder_id='13F2mg5S4jOAmTy38hkbJDkc9H3aBcaHf'  # Replace with real folder ID\n",
+    "#         )\n",
+    "\n",
+    "#         try:\n",
+    "#             gdrive_link = gdrive_uploader.upload_file(report_path, report_filename)\n",
+    "#             summary_data.loc[summary_data['store_uuid'] == store_uuid, 'Drive URL'] = gdrive_link\n",
+    "        \n",
+    "        \n",
+    "# # Print the progress\n",
+    "#             print(f\"Processed {i}/{total_stores}\")\n",
+    "    \n",
+    "#         except Exception as upload_error:\n",
+    "#             summary_data.loc[summary_data['store_uuid'] == store_uuid, 'Drive URL'] = 'Upload Failed'\n",
+    "#             print(f\"Upload failed for store {store_name}: {upload_error}\")\n",
+    "    \n",
+    "       \n",
+    "# #     except Exception as e:\n",
+    "# #         summary_data.loc[summary_data['store_uuid'] == store_uuid, 'Box URL'] = 'Error processing store'\n",
+    "# #         print(f\"Error processing store {store_name} {store_uuid}: {str(e)}\")\n",
+    "#         continue\n",
+    "    \n",
+    "# pd.set_option('display.max_colwidth', 0)\n",
+    "# output = summary_data[['store_uuid', 'store_name', 'Drive URL']]\n",
+    "# output\n",
+    "# ## Output Box Reports to Gsheets\n",
+    "\n",
+    "# # Gsheetsauth_file = '/home/smalli11/smalli11_nfs/daasu4b-583596e965ad.json'  # Path to your JSON auth file\n",
+    "# # sheet_id = '1RVT_jiGbt4vkCxQFhuu2d0dSkHm00hhYml4uJOARHi8'  # Replace with the actual sheet ID\n",
+    "# # tab_name = 'test output'  # Replace with the actual tab name\n",
+    "\n",
+    "# # gsheets = Gsheets(Gsheetsauth_file, sheet_id, tab_name)\n",
+    "# # gsheets.append_data(output)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "id": "b76860a7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# result=[]\n",
+    "# for item in uploaded_file:\n",
+    "#             result.append({\n",
+    "#                 'id': item.id,\n",
+    "#                 'name': item.name,\n",
+    "#                 'type': item.type,\n",
+    "#             })\n",
+    "# #         logger.info(result)\n",
+    "# print(result)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "id": "2119715d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# pwd"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 44,
+   "id": "16599f15",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# import boxsdk\n",
+    "# from boxsdk import Client, JWTAuth\n",
+    "# from boxsdk.exception import BoxAPIException\n",
+    "# config = JWTAuth.from_settings_file('/mnt/cephfs/hadoop-compute/phoenix/smalli11/Regulatory_script/box_config.json')\n",
+    "# client=Client(config)\n",
+    "# root_folder=client.folder('215464359872')\n",
+    "# print(root_folder.get())\n",
+    "# cur_user=client.user().get()\n",
+    "# print(cur_user)\n",
+    "# boxItems = client.folder(folder_id='0').get_items()\n",
+    "# for boxItem in boxItems:\n",
+    "#     boxFoldName = boxItem.name\n",
+    "#     boxFoldId = boxItem.id\n",
+    "#     print(boxFoldName,boxFoldId)\n",
+    "#     if boxFoldName == 'Merchant Operations - Menu Automation':\n",
+    "#         destboxFoldID = boxFoldId\n",
+    "# print(destboxFoldID)\n",
+    "# try:\n",
+    "#     box_file = client.folder(destboxFoldID).upload(f\"/mnt/cephfs/hadoop-compute/phoenix/smalli11/Regulatory_script/{report_filename}\", preflight_check=True)\n",
+    "# except BoxAPIException:\n",
+    "#     pass"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 42,
+   "id": "e268dde0",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "################################\n",
+    "# box credentials\n",
+    "################################\n",
+    "\n",
+    "# #BOX_CONFIG_PATH = '/mnt/cephfs/hadoop-compute/phoenix/brian.leong/utilities/93822_h2gt8n7g_config.json'\n",
+    "\n",
+    "# def authenticate_box(json_credentials_path):\n",
+    "#     with open(json_credentials_path, 'r') as f:\n",
+    "#         json_credentials = json.load(f)\n",
+    "\n",
+    "#     auth = JWTAuth.from_settings_dictionary(json_credentials)\n",
+    "#     client = Client(auth)\n",
+    "\n",
+    "#     return client\n",
+    "\n",
+    "# # Replace 'path_to_your_json_credentials_file.json' with the path to your JSON credentials file\n",
+    "# box_client = authenticate_box('/mnt/cephfs/hadoop-compute/phoenix/smalli11/Regulatory_script/box_config.json')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "id": "6f92c428",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# dir(box_client)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "id": "84a65cb7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "   \n",
+    "#     except Exception as e:\n",
+    "#         summary_data.loc[summary_data['store_uuid'] == store_uuid, 'Box URL'] = 'Error processing store'\n",
+    "#         print(f\"Error processing store {store_name} {store_uuid}: {str(e)}\")\n",
+    "#         continue\n",
+    "    \n",
+    "# pd.set_option('display.max_colwidth', 0)\n",
+    "# output = summary_data[['store_uuid', 'store_name', 'Box URL']]\n",
+    "# output\n",
+    "\n",
+    "# ## Output Box Reports to Gsheets\n",
+    "\n",
+    "# Gsheetsauth_file = '/home/smalli11/smalli11_nfs/daasu4b-583596e965ad.json'  # Path to your JSON auth file\n",
+    "# sheet_id = '1RVT_jiGbt4vkCxQFhuu2d0dSkHm00hhYml4uJOARHi8'  # Replace with the actual sheet ID\n",
+    "# tab_name = 'test output'  # Replace with the actual tab name\n",
+    "\n",
+    "# gsheets = Gsheets(Gsheetsauth_file, sheet_id, tab_name)\n",
+    "# gsheets.append_data(output)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "id": "490cffdc-722b-4fd6-b8d2-cfb7cf14d659",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# !pip install --upgrade --force-reinstall tornado==5.1.1 tchannel"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "id": "870ed40c-d912-4651-85aa-85a8ef94c014",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# import sys\n",
+    "# print(sys.executable)  # Check the path of the Python interpreter\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "id": "69a3e719-5780-4905-9040-31c645cc710b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# import gspread\n",
+    "# print(\"gspread imported successfully!\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b4178767-8102-4b99-b3b0-4f070952cef5",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ec8f66bf",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "04. Python 3.6 (General DS)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.6.4"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
 
